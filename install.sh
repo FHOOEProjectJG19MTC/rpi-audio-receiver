@@ -17,12 +17,36 @@ echo "Updating packages"
 sudo apt update
 sudo apt upgrade -y
 
+echo "Installing PulseAudio"
+apt install -y --no-install-recommends pulseaudio
+usermod -a -G pulse-access root
+usermod -a -G bluetooth pulse
+mv /etc/pulse/client.conf /etc/pulse/client.conf.orig
+cat <<'EOF' >> /etc/pulse/client.conf
+default-server = /run/pulse/native
+autospawn = no
+EOF
+
+# PulseAudio system daemon
+cat <<'EOF' > /etc/systemd/system/pulseaudio.service
+[Unit]
+Description=Sound Service
+[Install]
+WantedBy=multi-user.target
+[Service]
+Type=notify
+PrivateTmp=true
+ExecStart=/usr/bin/pulseaudio --daemonize=no --system --disallow-exit --disable-shm --exit-idle-time=-1 --log-target=journal
+Restart=on-failure
+EOF
+systemctl enable --now pulseaudio.service
+
+# Disable user-level PulseAudio service
+systemctl --global mask pulseaudio.socket
+
 echo "Installing components"
+
 if [[ $FEATURES = *bluetooth* ]]; then sudo $(dirname $0)/install-bluetooth.sh $@; fi
 if [[ $FEATURES = *shairport* ]]; then sudo $(dirname $0)/install-shairport.sh $@; fi
 if [[ $FEATURES = *spotify* ]]; then sudo $(dirname $0)/install-spotify.sh $@; fi
-if [[ $FEATURES = *upnp* ]]; then sudo $(dirname $0)/install-upnp.sh $@; fi
-if [[ $FEATURES = *snapcast* ]]; then sudo $(dirname $0)/install-snapcast-client.sh $@; fi
-if [[ $FEATURES = *pivumeter* ]]; then sudo $(dirname $0)/install-pivumeter.sh $@; fi
 #if [[ $FEATURES = *hifiberry* ]]; then sudo ./enable-hifiberry.sh $@; fi ##sctipt not alterted
-if [[ $FEATURES = *read-only* ]]; then sudo $(dirname $0)/enable-read-only.sh $@; fi
